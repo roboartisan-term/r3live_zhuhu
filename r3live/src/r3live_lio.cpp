@@ -87,6 +87,23 @@ void printf_field_name( sensor_msgs::PointCloud2::ConstPtr &msg )
     cout << endl;
 }
 
+namespace velodyne_ros {
+    struct EIGEN_ALIGN16 Point {
+        PCL_ADD_POINT4D;
+        float intensity;
+        float time;
+        uint16_t ring;
+        EIGEN_MAKE_ALIGNED_OPERATOR_NEW
+    };
+}  // namespace velodyne_ros
+POINT_CLOUD_REGISTER_POINT_STRUCT(velodyne_ros::Point,
+        (float, x, x)
+        (float, y, y)
+        (float, z, z)
+        (float, intensity, intensity)
+        (float, time, time)
+        (uint16_t, ring, ring)
+)
 
 bool R3LIVE::get_pointcloud_data_from_ros_message( sensor_msgs::PointCloud2::ConstPtr &msg, pcl::PointCloud< pcl::PointXYZINormal > &pcl_pc )
 {
@@ -97,7 +114,7 @@ bool R3LIVE::get_pointcloud_data_from_ros_message( sensor_msgs::PointCloud2::Con
     // printf_field_name(msg);
     if ( msg->fields.size() < 3 )
     {
-        cout << "Get pointcloud data from ros messages fail!!!" << endl;
+        cout << "msg->fields.size()<3======Get pointcloud data from ros messages fail!!!" << endl;
         scope_color( ANSI_COLOR_RED_BOLD );
         printf_field_name( msg );
         return false;
@@ -108,6 +125,33 @@ bool R3LIVE::get_pointcloud_data_from_ros_message( sensor_msgs::PointCloud2::Con
              ( msg->fields[ 4 ].name == "normal_x" ) ) // Input message type is pcl::PointXYZINormal
         {
             pcl::fromROSMsg( *msg, pcl_pc );
+            return true;
+        }
+        else if ( ( msg->fields.size() == 6 ) && ( msg->fields[ 3 ].name == "intensity" ) && ( msg->fields[ 4 ].name == "ring" ) && msg->fields[5].name=="time") // Input message type is pcl::PointXYZIRT
+        {
+            pcl::PointCloud<velodyne_ros::Point> pcl_pc_in;
+            pcl::fromROSMsg( *msg, pcl_pc_in );
+            int    pt_count = 0;
+
+            pcl_pc.resize( pcl_pc_in.size() );
+            for ( size_t i = 0; i < pcl_pc_in.points.size(); i++ )
+            {
+                pcl::PointXYZINormal pcl_pc_in_point;
+                pcl_pc_in_point.x = pcl_pc_in.points[ i ].x;
+                pcl_pc_in_point.y = pcl_pc_in.points[ i ].y;
+                pcl_pc_in_point.z = pcl_pc_in.points[ i ].z;
+                pcl_pc_in_point.intensity = pcl_pc_in.points[ i ].intensity;
+                pcl_pc_in_point.curvature = 0;
+                // pcl_pc_in_point.normal_x = pcl_pc_in.points[ i ].ring;
+                // pcl_pc_in_point.normal_y = pcl_pc_in.points[ i ].ring;
+                // pcl_pc_in_point.normal_z = pcl_pc_in.points[ i ].ring;
+                // pcl_pc_in_point.ring = pcl_pc_in.points[ i ].time;
+                pcl_pc.points[ pt_count ] = pcl_pc_in_point;
+                pt_count++;
+                // res_pc.points.push_back( pcl_pc );
+            }
+            pcl_pc.points.resize(pt_count);
+
             return true;
         }
         else if ( ( msg->fields.size() == 4 ) && ( msg->fields[ 3 ].name == "rgb" ) )
@@ -140,7 +184,7 @@ bool R3LIVE::get_pointcloud_data_from_ros_message( sensor_msgs::PointCloud2::Con
         }
         else // TODO, can add by yourself
         {
-            cout << "Get pointcloud data from ros messages fail!!! ";
+            cout << "TODO, can add by yourself Get pointcloud data from ros messages fail!!! ";
             scope_color( ANSI_COLOR_RED_BOLD );
             printf_field_name( msg );
             return false;
